@@ -15,8 +15,6 @@
         0xf9562b2d5c95a6c8, 0x6a7b384944536bdc, (N) \
     }
 
-static volatile uint32_t *const COM1 = (volatile uint32_t *)0x3f8;
-
 static inline void outb(uint16_t port, uint8_t value) {
     __asm__ volatile ("outb %0, %1" : : "a"(value), "Nd"(port));
 }
