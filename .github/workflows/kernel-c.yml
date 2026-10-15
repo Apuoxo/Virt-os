@@ -1,0 +1,61 @@
+name: Aether C kernel bootstrap
+
+on:
+  push:
+    branches: [kernel-c-bootstrap]
+    paths:
+      - "kernel-c/**"
+      - ".github/workflows/kernel-c.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build and test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential git xorriso qemu-system-x86
+
+      - name: Build freestanding x86-64 kernel and bootable ISO
+        run: make -C kernel-c
+
+      - name: Check kernel ELF
+        run: |
+          file kernel-c/out/aether-kernel.elf
+          readelf -h kernel-c/out/aether-kernel.elf
+          readelf -l kernel-c/out/aether-kernel.elf
+
+      - name: QEMU serial boot smoke test
+        shell: bash
+        run: |
+          set +e
+          timeout 12s qemu-system-x86_64 \
+            -machine q35 -m 256M -smp 2 \
+            -cdrom kernel-c/out/aether-c-kernel-x86_64.iso \
+            -boot d -display none -serial stdio -monitor none -no-reboot \
+            > qemu-kernel.log 2>&1
+          status=$?
+          set -e
+          if [ "$status" -ne 124 ] && [ "$status" -ne 0 ]; then
+            cat qemu-kernel.log
+            exit "$status"
+          fi
+          cat qemu-kernel.log
+          grep -q "AETHER C KERNEL: BOOTED" qemu-kernel.log
+          grep -q "ARCH=x86_64" qemu-kernel.log
+          grep -q "LANGUAGE=C11-FREESTANDING" qemu-kernel.log
+
+      - name: Upload bootstrap ISO
+        uses: actions/upload-artifact@v4
+        with:
+          name: aether-c-kernel-bootstrap-x86_64
+          path: kernel-c/out/aether-c-kernel-x86_64.iso
+          if-no-files-found: error
