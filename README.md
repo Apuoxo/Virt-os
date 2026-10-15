@@ -1,108 +1,85 @@
 # Aether OS
 
-Aether OS starts again from a clean foundation.
+**Aether OS** — экспериментальная операционная система для архитектуры x86-64, объединяющая низкоуровневую системную основу, загрузочную инфраструктуру, графическую среду и концепцию глубокой интеграции искусственного интеллекта.
 
-The project has two inseparable goals:
+Проект развивается в направлении полноценной Linux-совместимой операционной системы с широкими возможностями управления аппаратным обеспечением и интеллектуальной средой пользователя.
 
-1. **A complete Linux operating system** — not an embedded image, not a reduced kernel, and not a hardware-specific experiment. Aether must preserve the Linux ABI/API, hardware support, drivers, filesystems, networking, graphics, audio, security, virtualization, services, desktop, applications, and normal Linux workflows.
-2. **Absolute AI integration** — AI is a first-class system intelligence with a structured way to observe, understand, plan, and control the entire operating system.
+## Основные возможности и направления развития
 
-## Architecture
+- **Системная основа:** проект исследует загрузку и работу операционной системы на архитектуре x86-64.
+- **Загрузка системы:** загрузочная инфраструктура на базе GRUB и Multiboot2.
+- **Графическая среда:** Aether Desktop и пользовательские системные компоненты.
+- **Работа с файлами:** исследовательские компоненты файловой подсистемы и поддержка распространённых файловых форматов.
+- **Аппаратное обеспечение:** развитие поддержки графики, аудио, сетевых устройств и периферии.
+- **Мультимедиа:** исследовательские компоненты обработки аудио, видео и изображений.
+- **Совместимость:** цель проекта — полноценная Linux-среда, способная запускать стандартные приложения без искусственных ограничений.
+- **Интеграция ИИ:** одно из основных направлений развития — интеллектуальное управление системой и взаимодействие с пользователем на естественном языке.
 
-```
-                         AETHER AI
-                             |
-                    AETHER SYSTEM INTERFACE
-                             |
-                        AETHER CORE
-                             |
-              +--------------+--------------+
-              |                             |
-        Linux userspace              Aether services
-              |                             |
-              +--------------+--------------+
-                             |
-                    FULL LINUX KERNEL
-                             |
-                         HARDWARE
-```
+> Наличие компонента в исходниках или загрузочном образе само по себе не подтверждает его полноту, работоспособность или совместимость с конкретным оборудованием.
 
-### Full Linux
+## Архитектурное направление
 
-Aether does not replace Linux with a custom kernel abstraction.
+Долгосрочная архитектура Aether предусматривает сохранение Linux в качестве настоящей системной основы, а не замену Linux собственным урезанным ядром.
 
-Linux remains the real operating-system foundation:
+Linux должен обеспечивать стандартные интерфейсы, драйверы и службы, управление процессами и памятью, файловые системы, сеть, графику, звук, безопасность и совместимость с обычными Linux-приложениями.
 
-- full x86_64 Linux kernel;
-- standard Linux ABI/API;
-- broad hardware and driver support;
-- CPU/SMP, memory management and power management;
-- storage and filesystems;
-- networking, Wi-Fi and Bluetooth;
-- GPU/DRM/KMS and display;
-- audio and USB;
-- security, namespaces, cgroups and containers;
-- virtualization;
-- standard services and desktop environments;
-- normal Linux applications and development tools.
+Слой Aether и интеграция ИИ должны расширять возможности системы, не мешая её обычной работе. ИИ не должен быть обязательным условием загрузки или функционирования ОС.
 
-AI must never be a prerequisite for Linux to boot or operate.
+## Сведения о просканированном образе
 
-### Absolute AI integration
+Согласно имеющемуся отчёту сканирования, исследованный образ имел следующие характеристики:
 
-Aether AI must not be limited to a chat window or a root shell.
+- **Формат:** ISO 9660.
+- **Размер:** приблизительно 9,34 МБ.
+- **Количество файлов:** 293.
+- **Обнаруженный файл ядра:** `boot/aether.bin`.
+- **Загрузчик:** конфигурация GRUB и модули для BIOS.
+- **Дополнительные компоненты:** прошивка Intel Wi-Fi и компоненты графики и мультимедиа.
 
-The system will provide a structured interface for:
+Эти сведения относятся именно к просканированному образу и не должны автоматически восприниматься как описание каждой последующей сборки. Структурный отчёт указан в каталоге [`image-scan`](https://github.com/Apuoxo/Apuoxo-/tree/main/image-scan) связанного репозитория.
 
-- system state and hardware observation;
-- processes and resources;
-- files and storage;
-- networking;
-- devices and drivers;
-- services;
-- applications;
-- desktop state and interaction;
-- system events;
-- diagnostics;
-- controlled configuration and administration;
-- build, test, deployment and recovery workflows.
+## Интеграция искусственного интеллекта
 
-The AI layer will use Linux capabilities rather than replacing Linux interfaces. Existing Linux applications must continue to work normally whether AI is enabled or disabled.
+Цель Aether — сделать ИИ глубоко интегрированной частью операционной системы, а не только отдельным окном чата.
 
-## Compatibility principle
+Планируемые направления:
 
-> **Aether adds capabilities to Linux; it does not remove Linux capabilities.**
+- наблюдение за состоянием системы и оборудования;
+- получение диагностических данных;
+- помощь в управлении приложениями, службами и файлами;
+- выполнение задач на естественном языке;
+- контролируемое администрирование с учётом разрешений;
+- диагностика, восстановление и проверяемые рабочие процессы.
 
-A normal Linux program should not need to know that it is running on Aether.
+Это направления развития, а не заявление о том, что все перечисленные функции уже реализованы.
 
-The AI integration must be additive, observable, permission-aware and recoverable.
+## План развития
 
-## Development principles
+1. Создать воспроизводимую сборку полноценной Linux-системы.
+2. Проверять загрузку и работу системы в QEMU.
+3. Подготовить полноценную пользовательскую среду и корневую файловую систему.
+4. Определить системный интерфейс Aether Core.
+5. Разработать интерфейс наблюдения и управления для ИИ.
+6. Добавлять интеграцию ИИ поэтапно, с проверками и восстановлением после ошибок.
+7. Проверять поддержку оборудования на реальных устройствах.
 
-- Correctness before speed.
-- No artificial functional limits in the Linux foundation.
-- One verified architectural step at a time.
-- Every functional change must be buildable and testable.
-- AI must remain isolated from kernel-critical operation.
-- Dangerous AI actions require explicit system capabilities and policy.
-- Failed system generations must be recoverable.
-- Hardware-specific work belongs in the Linux driver ecosystem whenever possible, not in custom bare-metal replacements.
+## Проверка качества
 
-## Starting point
+Для каждой сборки необходимо проверять:
 
-This repository is intentionally reset to an empty project foundation.
+- формирование загрузочного образа и наличие загрузчика;
+- целостность файлов и контрольные суммы;
+- результаты автоматизированных тестов;
+- фактическую загрузку в виртуальной среде;
+- работу на физическом оборудовании;
+- корректность работы системы при отключённом ИИ.
 
-Nothing from the previous bare-metal Rust implementation is part of the new architecture.
+## Статус проекта
 
-The first implementation stages are:
+**Экспериментальная разработка.**
 
-1. establish a reproducible full-Linux build;
-2. boot a real Linux system in QEMU;
-3. establish the complete userspace/root filesystem;
-4. establish Aether Core as the system integration boundary;
-5. define the Aether System Interface and system-state model;
-6. add the AI model bridge;
-7. integrate AI observation and control incrementally;
-8. validate the same architecture on real hardware.
+Готовность к повседневному использованию, полнота аппаратной поддержки и совместимость с внешними приложениями требуют дальнейшей реализации и проверки. Статусы функций должны подтверждаться сборками, тестами и результатами испытаний.
 
-The project will grow from this foundation without sacrificing Linux compatibility or AI integration.
+## Лицензия
+
+Перед указанием лицензии необходимо подтвердить условия распространения исходного кода и всех сторонних компонентов, входящих в проект.
