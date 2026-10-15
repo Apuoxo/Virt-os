@@ -43,7 +43,7 @@ fn is_untitled() -> bool {
 }
 fn normalize_name(raw: &[u8], out: &mut [u8; NAME_MAX]) -> usize {
     let mut n = 0usize; let mut i = 0usize;
-    while i < raw.len() && n < NAME_MAX - 1 {
+    while i < raw.len() && n < 22 {
         let mut c = raw[i];
         if c >= b'a' && c <= b'z' { c -= 32; }
         let ok = (c>=b'A'&&c<=b'Z')||(c>=b'0'&&c<=b'9')||c==b'.'||c==b'_'||c==b'-';
@@ -52,7 +52,7 @@ fn normalize_name(raw: &[u8], out: &mut [u8; NAME_MAX]) -> usize {
     }
     let mut has_dot = false; let mut j = 0usize;
     while j < n { if out[j]==b'.' { has_dot = true; } j += 1; }
-    if n > 0 && !has_dot && n + 4 < NAME_MAX {
+    if n > 0 && !has_dot && n + 4 <= 22 {
         out[n]=b'.'; out[n+1]=b'T'; out[n+2]=b'X'; out[n+3]=b'T'; n += 4;
     }
     n
@@ -119,10 +119,10 @@ pub fn open_named(name: &[u8]) -> bool {
     if nl==0{set_status(b"Bad name");return false;}
     let path=core::str::from_utf8(&norm[..nl]).unwrap_or("");
     let mut tmp=[0u8;CAP];
-    let n=fs::read(path,&mut tmp).or_else(||{
+    let n=fs::read_large(path,&mut tmp).or_else(||{
         let mut p=[0u8;32]; p[0]=b'/';
         let mut i=0usize; while i<nl&&i+1<32{p[i+1]=norm[i];i+=1;}
-        fs::read(core::str::from_utf8(&p[..i+1]).unwrap_or(path),&mut tmp)
+        fs::read_large(core::str::from_utf8(&p[..i+1]).unwrap_or(path),&mut tmp)
     });
     let Some(n)=n else{set_status(b"File not found");return false;};
     open_bytes(&norm[..nl],&tmp[..n]);
@@ -135,11 +135,10 @@ pub fn save() -> bool {
         }
         if !fs::is_mounted(){set_status(b"AetherFS not mounted");return false;}
         let path=name_str();
-        let _=fs::create(path);
         let data=&BUF[..LEN];
-        let ok=if data.is_empty(){fs::write(path,b"")}
-            else if data.len()<=512{fs::write(path,data)||fs::write_large(path,data)}
-            else{fs::write_large(path,data)};
+        // write_large allocates a fresh extent and switches the directory entry only
+        // after the complete contents have been written; this is safe for every size.
+        let ok=fs::write_large(path,data);
         if ok{DIRTY=false;set_status(b"Saved OK to AetherFS");true}
         else{set_status(b"SAVE FAILED");false}
     }
