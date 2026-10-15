@@ -104,6 +104,82 @@ chroot "$ROOTFS" useradd -m -s /bin/bash aether
 chroot "$ROOTFS" usermod -aG audio,video,netdev,plugdev,sudo aether
 chroot "$ROOTFS" passwd -d aether
 
+# Aether text desktop: an auto-login terminal workspace on the local console.
+cat > "$ROOTFS/usr/local/bin/aether-text-desktop" <<'TEXTDESK'
+#!/bin/sh
+set -eu
+
+while :; do
+  clear
+  printf '\033[1;36m'
+  printf '==============================================\n'
+  printf '                 AETHER DESKTOP               \n'
+  printf '==============================================\n'
+  printf '\033[0m'
+  printf ' Host: '; hostname
+  printf ' Kernel: '; uname -r
+  printf '\n'
+  printf ' 1) System information\n'
+  printf ' 2) Network status\n'
+  printf ' 3) Storage status\n'
+  printf ' 4) Open command shell\n'
+  printf ' 5) Restart computer\n'
+  printf ' 6) Shut down computer\n'
+  printf '\n Select an option [1-6]: '
+  IFS= read -r choice || choice=4
+  case "$choice" in
+    1) clear; uname -a; printf '\n'; cat /etc/os-release; printf '\nPress Enter...'; read -r _ ;;
+    2) clear; ip -brief address 2>&1 || true; printf '\nPress Enter...'; read -r _ ;;
+    3) clear; df -h; printf '\nPress Enter...'; read -r _ ;;
+    4) /bin/bash --login ;;
+    5) systemctl reboot ;;
+    6) systemctl poweroff ;;
+    *) printf '\nUnknown option. Press Enter...'; read -r _ ;;
+  esac
+done
+TEXTDESK
+chmod 0755 "$ROOTFS/usr/local/bin/aether-text-desktop"
+
+cat > "$ROOTFS/home/aether/.bash_profile" <<'PROFILE'
+if [ "$(tty 2>/dev/null || true)" = "/dev/tty1" ] && [ -z "${AETHER_TEXT_DESKTOP_ACTIVE:-}" ]; then
+  export AETHER_TEXT_DESKTOP_ACTIVE=1
+  exec /usr/local/bin/aether-text-desktop
+fi
+PROFILE
+chroot "$ROOTFS" chown aether:aether /home/aether/.bash_profile
+
+mkdir -p "$ROOTFS/etc/systemd/system/getty@tty1.service.d"
+cat > "$ROOTFS/etc/systemd/system/getty@tty1.service.d/override.conf" <<'GETTY'
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin aether --noclear %I linux
+GETTY
+
+cat > "$ROOTFS/usr/local/libexec/aether-text-ready" <<'TEXTREADY'
+#!/bin/sh
+set -eu
+mkdir -p /run/aether
+printf '%s\n' 'AETHER_TEXT_DESKTOP=READY' > /run/aether/state
+if [ -e /dev/ttyS0 ]; then
+  printf '%s\n' 'AETHER_TEXT_DESKTOP=READY' > /dev/ttyS0
+fi
+TEXTREADY
+chmod 0755 "$ROOTFS/usr/local/libexec/aether-text-ready"
+
+cat > "$ROOTFS/etc/systemd/system/aether-text-ready.service" <<'SERVICE'
+[Unit]
+Description=Aether text desktop readiness marker
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/aether-text-ready
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
+
 mkdir -p "$ROOTFS/etc/lightdm/lightdm.conf.d"
 cat > "$ROOTFS/etc/lightdm/lightdm.conf.d/50-aether.conf" <<'LIGHTDM'
 [Seat:*]
@@ -190,9 +266,8 @@ WantedBy=graphical.target
 SERVICE
 
 chroot "$ROOTFS" systemctl enable aether-ai.service
-chroot "$ROOTFS" systemctl enable lightdm
-chroot "$ROOTFS" systemctl enable aether-gui-ready.service
-chroot "$ROOTFS" systemctl set-default graphical.target
+chroot "$ROOTFS" systemctl enable aether-text-ready.service
+chroot "$ROOTFS" systemctl set-default multi-user.target
 
 umount -lf "$ROOTFS/run" "$ROOTFS/sys" "$ROOTFS/proc" "$ROOTFS/dev" 2>/dev/null || true
 trap - EXIT
@@ -249,7 +324,7 @@ set timeout=0
 set default=0
 
 menuentry "Aether OS Linux Desktop" {
-    linux /boot/vmlinuz console=ttyS0,115200n8
+    linux /boot/vmlinuz console=tty0 console=ttyS0,115200n8
     initrd /boot/initramfs.cpio.gz
 }
 GRUB
