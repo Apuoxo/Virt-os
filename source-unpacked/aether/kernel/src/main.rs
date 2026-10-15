@@ -26,6 +26,7 @@ mod video_diag;
 mod fb;
 mod desktop;
 mod files_mgr;
+mod textedit;
 mod ring3_resume;
 mod time;
 mod mbi_mod;
