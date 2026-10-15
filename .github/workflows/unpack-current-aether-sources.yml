@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   unpack:
@@ -47,7 +47,7 @@ jobs:
             7z x -y -owork/unpacked/files work/payload >/dev/null
           else
             echo 'ERROR: decompressed .aaf payload is not a recognized tar/zip/7z archive.' >&2
-            echo 'The payload was preserved as work/payload for format investigation.' >&2
+            echo 'Payload preserved as an Actions artifact for format investigation.' >&2
             exit 2
           fi
           find work/unpacked/files -type f -printf '%P\t%s bytes\n' | sort > work/unpacked/MANIFEST.tsv
@@ -56,6 +56,24 @@ jobs:
           wc -l < work/unpacked/MANIFEST.tsv
           echo 'Manifest preview:'
           head -n 80 work/unpacked/MANIFEST.tsv
+
+      - name: Publish extracted source into the repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p source-unpacked
+          rsync -a --delete work/unpacked/files/ source-unpacked/
+          cp work/unpacked/FORMAT.txt source-unpacked/ARCHIVE-FORMAT.txt
+          cp work/unpacked/MANIFEST.tsv source-unpacked/MANIFEST.tsv
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add source-unpacked
+          if git diff --cached --quiet; then
+            echo 'Extracted sources are already up to date.'
+          else
+            git commit -m 'Unpack current Aether source archive'
+            git push
+          fi
 
       - name: Upload unpacked source and diagnostics
         if: always()
