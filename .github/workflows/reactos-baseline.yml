@@ -72,13 +72,19 @@ jobs:
       - name: Configure ReactOS
         shell: pwsh
         run: |
-          cmake -S src -B build -G Ninja `
-            -DCMAKE_TOOLCHAIN_FILE:FILEPATH=src/toolchain-msvc.cmake `
-            -DARCH:STRING=amd64 `
-            -DCMAKE_BUILD_TYPE=Debug `
-            -DDLL_EXPORT_VERSION=0x600 `
-            -DENABLE_ROSTESTS=1 `
-            -DENABLE_ROSAPPS=1
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Path build -Force | Out-Null
+          Push-Location build
+          try {
+            & ..\src\configure.cmd `
+              -DCMAKE_BUILD_TYPE:STRING=Debug `
+              -DDLL_EXPORT_VERSION=0x600 `
+              -DENABLE_ROSTESTS=1 `
+              -DENABLE_ROSAPPS=1
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } finally {
+            Pop-Location
+          }
 
       - name: Build bootable ISO
         shell: pwsh
@@ -87,7 +93,7 @@ jobs:
       - name: Validate ISO artifact
         shell: pwsh
         run: |
-          $iso = Join-Path $env:GITHUB_WORKSPACE 'build\bootcd.iso'
+          $iso = Join-Path ${env:GITHUB_WORKSPACE} 'build\bootcd.iso'
           if (-not (Test-Path $iso)) { throw 'Build completed without build/bootcd.iso.' }
           $item = Get-Item $iso
           if ($item.Length -lt 1048576) { throw "ISO is unexpectedly small: $($item.Length) bytes" }
