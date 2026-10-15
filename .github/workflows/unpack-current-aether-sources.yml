@@ -1,0 +1,71 @@
+name: Unpack current Aether source archive
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/unpack-current-aether-sources.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unpack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download and validate today's source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p work/unpacked
+          curl --fail --location --retry 3 --retry-all-errors \
+            'https://raw.githubusercontent.com/Apuoxo/Apuoxo-/main/aether-src-latest.aaf.gz' \
+            --output work/aether-src-latest.aaf.gz
+          gzip -t work/aether-src-latest.aaf.gz
+          gzip -dc work/aether-src-latest.aaf.gz > work/payload
+          printf 'Downloaded gzip bytes: '
+          wc -c < work/aether-src-latest.aaf.gz
+          printf 'Decompressed payload bytes: '
+          wc -c < work/payload
+          file work/payload | tee work/unpacked/FORMAT.txt
+
+      - name: Extract archive on the GitHub runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p work/unpacked/files
+          if tar -tf work/payload >/dev/null 2>&1; then
+            tar -xf work/payload -C work/unpacked/files
+          elif unzip -t work/payload >/dev/null 2>&1; then
+            unzip -q work/payload -d work/unpacked/files
+          elif 7z l work/payload >/dev/null 2>&1; then
+            7z x -y -owork/unpacked/files work/payload >/dev/null
+          else
+            echo 'ERROR: decompressed .aaf payload is not a recognized tar/zip/7z archive.' >&2
+            echo 'The payload was preserved as work/payload for format investigation.' >&2
+            exit 2
+          fi
+          find work/unpacked/files -type f -printf '%P\t%s bytes\n' | sort > work/unpacked/MANIFEST.tsv
+          test -s work/unpacked/MANIFEST.tsv
+          echo 'Extracted file count:'
+          wc -l < work/unpacked/MANIFEST.tsv
+          echo 'Manifest preview:'
+          head -n 80 work/unpacked/MANIFEST.tsv
+
+      - name: Upload unpacked source and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aether-sources-unpacked-20261015
+          path: |
+            work/unpacked/
+            work/aether-src-latest.aaf.gz
+            work/payload
+          if-no-files-found: warn
+          compression-level: 1
+          retention-days: 14
