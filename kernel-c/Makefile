@@ -1,6 +1,6 @@
 CC ?= gcc
 OUT ?= out
-LIMINE_VERSION ?= v8.7.0
+LIMINE_VERSION ?= v8.7.0-binary
 LIMINE_DIR := $(OUT)/limine
 ISO_ROOT := $(OUT)/iso-root
 KERNEL := $(OUT)/aether-kernel.elf
