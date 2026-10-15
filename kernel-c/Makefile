@@ -16,7 +16,7 @@ $(OUT):
 $(KERNEL): src/kernel.c linker.ld | $(OUT)
 	$(CC) -std=c11 -O2 -Wall -Wextra -Werror \
 		-ffreestanding -fno-stack-protector -fno-pic -fno-pie \
-		-m64 -mno-red-zone -mcmodel=kernel -nostdlib \
+		-m64 -mno-red-zone -mcmodel=kernel -nostdlib -no-pie \
 		-Wl,-T,linker.ld -Wl,-z,max-page-size=0x1000 \
 		-o $@ src/kernel.c
 
