@@ -699,6 +699,21 @@ pub fn init_storage() -> bool {
 
 
 
+fn bitmap_free_contiguous(start_lba: u32, count: u32) {
+    if start_lba < DATA_START || count == 0 { return; }
+    let mut bm = [0u8; 512];
+    if !ata::read_sectors(BITMAP_LBA, 1, &mut bm) { return; }
+    let mut i = 0u32;
+    while i < count {
+        let bit = (start_lba - DATA_START + i) as usize;
+        if bit < 4096 {
+            bm[bit / 8] &= !(1u8 << (bit % 8));
+        }
+        i += 1;
+    }
+    let _ = ata::write_sectors(BITMAP_LBA, 1, &bm);
+}
+
 fn alloc_contiguous(count: u32) -> Option<u32> {
     if count == 0 { return None; }
     let mut bm = [0u8; 512];
@@ -734,13 +749,19 @@ fn alloc_contiguous(count: u32) -> Option<u32> {
     None
 }
 
-/// Write file larger than 1 sector (chain consecutive LBAs, update size)
+/// Rewrite a root-directory file using a newly allocated contiguous extent.
+/// Allocate/write first, switch the directory entry, then release the old extent.
+/// This prevents growth from overwriting neighboring files.
 pub fn write_large(path: &str, data: &[u8]) -> bool {
     if !is_mounted() { return false; }
     let name = strip_slash(path);
-    // create if needed
+    let nb = name.as_bytes();
+    let name_bytes = if !nb.is_empty() && nb[0] == b'/' { &nb[1..] } else { nb };
+    if name_bytes.is_empty() || name_bytes.len() > 22 { return false; }
+
     let mut entries = [DirEntry { name: [0; MAX_NAME], name_len: 0, flags: 0, start_lba: 0, size: 0 }; MAX_DIR_ENTRIES];
     if !load_root(&mut entries) { return false; }
+
     let mut slot = None;
     let mut i = 0usize;
     while i < MAX_DIR_ENTRIES {
@@ -748,33 +769,33 @@ pub fn write_large(path: &str, data: &[u8]) -> bool {
             slot = Some(i);
             break;
         }
-        if entries[i].flags & 1 == 0 && slot.is_none() {
-            slot = Some(i);
-        }
         i += 1;
     }
-    let slot = match slot { Some(s) => s, None => return false };
-    let sectors = (data.len() + 511) / 512;
-    if sectors == 0 || sectors > MAX_FILE_SECTORS { return false; }
-    // allocate first LBA if new
-    let mut start = entries[slot].start_lba;
-    if entries[slot].flags & 1 == 0 || start == 0 {
-        // allocate `sectors` consecutive blocks
-        start = match alloc_contiguous(sectors as u32) {
-            Some(l) => l,
-            None => {
-                serial::write_str("  [VFS] contiguous alloc FAIL\n");
-                return false;
-            }
-        };
-        let nb = name.as_bytes();
-        let mut off = 0usize;
-        if !nb.is_empty() && nb[0] == b'/' { off = 1; }
-        let mut e = DirEntry { name: [0; MAX_NAME], name_len: (nb.len() - off) as u8, flags: 1, start_lba: start, size: 0 };
-        let mut j = 0usize;
-        while off + j < nb.len() && j < 22 { e.name[j] = nb[off + j]; j += 1; }
-        entries[slot] = e;
+    let existing = slot.is_some();
+    if slot.is_none() {
+        i = 0;
+        while i < MAX_DIR_ENTRIES {
+            if entries[i].flags & 1 == 0 { slot = Some(i); break; }
+            i += 1;
+        }
     }
+    let slot = match slot { Some(s) => s, None => return false };
+
+    let sectors = core::cmp::max(1, (data.len() + 511) / 512);
+    if sectors > MAX_FILE_SECTORS { return false; }
+
+    let old_start = if existing { entries[slot].start_lba } else { 0 };
+    let old_size = if existing { entries[slot].size as usize } else { 0 };
+    let old_sectors = if old_start != 0 { core::cmp::max(1, (old_size + 511) / 512) } else { 0 };
+
+    let new_start = match alloc_contiguous(sectors as u32) {
+        Some(l) => l,
+        None => {
+            serial::write_str("  [VFS] contiguous alloc FAIL\n");
+            return false;
+        }
+    };
+
     let mut sec = 0usize;
     while sec < sectors {
         let mut buf = [0u8; 512];
@@ -784,13 +805,35 @@ pub fn write_large(path: &str, data: &[u8]) -> bool {
             buf[j] = data[off + j];
             j += 1;
         }
-        if !ata::write_sectors(start + sec as u32, 1, &buf) { return false; }
+        if !ata::write_sectors(new_start + sec as u32, 1, &buf) {
+            // Keep the old directory entry intact; the new allocation is leaked
+            // rather than risking freeing blocks still referenced by a file.
+            return false;
+        }
         sec += 1;
     }
-    entries[slot].size = data.len() as u32;
-    entries[slot].flags = 1;
-    if !save_root(&entries) { return false; }
+
+    if existing {
+        entries[slot].start_lba = new_start;
+        entries[slot].size = data.len() as u32;
+        entries[slot].flags |= 1;
+    } else {
+        let mut e = DirEntry { name: [0; MAX_NAME], name_len: name_bytes.len() as u8, flags: 1, start_lba: new_start, size: data.len() as u32 };
+        i = 0;
+        while i < name_bytes.len() && i < 22 { e.name[i] = name_bytes[i]; i += 1; }
+        entries[slot] = e;
+    }
+    if !save_root(&entries) {
+        // Do not release old blocks unless the directory switch succeeded.
+        return false;
+    }
     let _ = ata::flush();
+
+    if old_start != 0 && old_sectors > 0 {
+        bitmap_free_contiguous(old_start, old_sectors as u32);
+    }
+    if !existing { unsafe { FILE_COUNT += 1; } }
+
     serial::write_str("  [VFS] write_large /");
     serial::write_str(name);
     serial::write_str(" bytes=");
@@ -800,7 +843,6 @@ pub fn write_large(path: &str, data: &[u8]) -> bool {
     serial::write_str("\n");
     true
 }
-
 
 
 /// Write file into a directory path like "/VIDEOTEST/VT160.AVI"
