@@ -105,6 +105,7 @@ chroot "$ROOTFS" usermod -aG audio,video,netdev,plugdev,sudo aether
 chroot "$ROOTFS" passwd -d aether
 
 # Aether text desktop: an auto-login terminal workspace on the local console.
+mkdir -p "$ROOTFS/usr/local/bin" "$ROOTFS/usr/local/libexec"
 cat > "$ROOTFS/usr/local/bin/aether-text-desktop" <<'TEXTDESK'
 #!/bin/sh
 set -eu
