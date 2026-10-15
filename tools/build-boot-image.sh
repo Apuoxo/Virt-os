@@ -169,7 +169,7 @@ chmod 0755 "$ROOTFS/usr/local/libexec/aether-text-ready"
 cat > "$ROOTFS/etc/systemd/system/aether-text-ready.service" <<'SERVICE'
 [Unit]
 Description=Aether text desktop readiness marker
-After=multi-user.target
+After=basic.target
 
 [Service]
 Type=oneshot
