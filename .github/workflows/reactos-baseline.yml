@@ -60,7 +60,6 @@ jobs:
           }
           if (-not $downloaded) { throw 'Could not download the ReactOS Flex/Bison tool archive.' }
           7z x $archive "-o$env:RUNNER_TEMP\flexbison" -y
-          " $env:RUNNER_TEMP\flexbison" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           "$env:RUNNER_TEMP\flexbison" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           "BISON_PKGDATADIR=$env:RUNNER_TEMP\flexbison\share\bison" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "M4=$env:RUNNER_TEMP\flexbison\m4.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
